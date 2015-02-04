@@ -39,7 +39,7 @@ class StypBox(object):
         return binary
 
 
-def split_risx(risx_file_name, template):
+def split_risx(risx_file_name, template, force):
     with open(risx_file_name, "rb") as f:
         box = Box.read(f)
         if box.type != b'styp':
@@ -67,9 +67,23 @@ def split_risx(risx_file_name, template):
                 print("Writing Segment Index #{}".format(segment_number))
                 if segment_index is not None:
                     segment_index.close()
-                segment_index = open(template.format(n=segment_number), "wb")
-                segment_index.write(styp.get_binary())
-            segment_index.write(box.get_binary())
+                index_file_name = template.format(n=segment_number)
+                try:
+                    segment_index = open(index_file_name,
+                        "wb" if force else "xb")
+                except FileExistsError:
+                    choice = input("Warning, output file {} already exists. "
+                        "Overwrite (y/N/q)?".format(index_file_name)).lower()
+                    if choice == "y":
+                        segment_index = open(index_file_name, "wb")
+                    elif choice == "q":
+                        break
+                    else:
+                        segment_index = None
+                if segment_index is not None:
+                    segment_index.write(styp.get_binary())
+            if segment_index is not None:
+                segment_index.write(box.get_binary())
         if segment_index is not None:
             segment_index.close()
 
@@ -81,6 +95,8 @@ if __name__ == "__main__":
     parser.add_argument("--template", "-t", help="Template for segment index "
         "files. {n} will be replaced with the segment number (starting at 1).",
         default="segment-{n}.sidx")
+    parser.add_argument("--force", "-f", action="store_true", default=False,
+        help="Overwrite output files without prompting.")
 
     args = parser.parse_args()
-    split_risx(args.representation_index, args.template)
+    split_risx(args.representation_index, args.template, args.force)
